@@ -3,10 +3,13 @@ package com.example.musicplayer
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.MenuItem
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -24,16 +27,18 @@ class MainActivity : AppCompatActivity() {
          lateinit var MusicListMA : ArrayList<Music>
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     @SuppressLint("SuspiciousIndentation")
     override fun onCreate(savedInstanceState: Bundle?) {
         binding = ActivityMainBinding.inflate(layoutInflater)
         super.onCreate(savedInstanceState)
-        requestRuntimePermission()
         initializeLayout()
 
 
         binding.shuffleBtn.setOnClickListener {
          val  intent = Intent(this@MainActivity,PlayerActivity::class.java)
+            intent.putExtra("index", 0)
+            intent.putExtra("class", "MainActivity")
             startActivity(intent)
         }
         binding.favouriteBtn.setOnClickListener {
@@ -88,8 +93,9 @@ class MainActivity : AppCompatActivity() {
         return  super.onOptionsItemSelected(item)
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun initializeLayout(){
-      //  requestRuntimePermission()
+        requestRuntimePermission()
         setTheme(R.style.Theme_MusicPlayer)
 
         binding=ActivityMainBinding.inflate(layoutInflater)
@@ -98,7 +104,7 @@ class MainActivity : AppCompatActivity() {
         toggle = ActionBarDrawerToggle(this, binding.root, R.string.open, R.string.close)
         binding.root.addDrawerListener(toggle)
         toggle.syncState()
-        MusicListMA = getAllAudio()
+        getAllAudio().also { MusicListMA = it }
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         val  musiclist = ArrayList<String>()
@@ -112,48 +118,39 @@ class MainActivity : AppCompatActivity() {
         binding.totalSongs.text = "Total Songs : " + musicAdapter.itemCount
 
     }
-    @SuppressLint("Range", "SuspiciousIndentation")
-    private fun getAllAudio(): ArrayList<Music> {
+    @SuppressLint("Recycle", "Range")
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun getAllAudio(): ArrayList<Music>{
         val tempList = ArrayList<Music>()
-        val selection = MediaStore.Audio.Media.IS_MUSIC + "!= 0"
-        val projection = arrayOf(MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.DATE_ADDED,
-            MediaStore.Audio.Media.DATA)
-        val cursor = this.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            selection,
-            null,
-            MediaStore.Audio.Media.DATE_ADDED + "DESC",
-            null)
-        if (cursor != null) {
-            if (cursor.moveToFirst())
+        val selection = MediaStore.Audio.Media.IS_MUSIC +  " != 0"
+        val projection = arrayOf(MediaStore.Audio.Media._ID,MediaStore.Audio.Media.TITLE,MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ARTIST,MediaStore.Audio.Media.DURATION,MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATA,MediaStore.Audio.Media.ALBUM_ID)
+
+        val cursor = this.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,selection,null,
+            MediaStore.Audio.Media.DATE_ADDED + " DESC", null)
+        if(cursor != null){
+            if(cursor.moveToFirst())
                 do {
-                    val titleC =
-                        cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.TITLE))
-                    val idC = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media._ID))
-                    val albumC =
-                        cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM))
-                    val artistC =
-                        cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST))
+                    val titleC = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.TITLE))?:"Unknown"
+                    val idC = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media._ID))?:"Unknown"
+                    val albumC = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM))?:"Unknown"
+                    val artistC = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST))?:"Unknown"
                     val pathC = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.DATA))
-                    val duration =
-                        cursor.getLong(cursor.getColumnIndex(MediaStore.Audio.Media.TITLE))
-                    val music = Music(id = idC,
-                        title = titleC,
-                        album = albumC,
-                        artist = artistC,
-                        path = pathC,
-                        duratiion = duration)
+                    val durationC = cursor.getLong(cursor.getColumnIndex(MediaStore.Audio.Media.DURATION))
+                    val albumIdC = cursor.getLong(cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID))
+                    val uri = Uri.parse("content://media/external/audio/albumart")
+                    val artUriC = Uri.withAppendedPath(uri, albumIdC.toString()).toString()
+
+                    val music = Music(id = idC, title = titleC, album = albumC, artist = artistC, path = pathC, duration = durationC,
+                    artUri = artUriC)
                     val file = File(music.path)
                     if(file.exists())
                         tempList.add(music)
-                } while (cursor.moveToNext())
-               cursor.close()
+                }while (cursor.moveToNext())
+            cursor.close()
         }
         return tempList
     }
 }
+
